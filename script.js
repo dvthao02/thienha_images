@@ -28,6 +28,7 @@ window.addEventListener('keydown', (e) => {
     autoZoom = !autoZoom;
   }
 });
+
 // Background - Galaxy with fallback
 function createBackground() {
   const loader = new THREE.TextureLoader();
@@ -156,43 +157,97 @@ function loadStarImages() {
   }
   imageFiles.forEach((filename, index) => {
     const promise = new Promise((resolve) => {
-      loader.load(`images/${filename}`, (texture) => {
-        imageTextures[index] = texture;
+      // Tạo texture dạng shape cho ảnh thật
+      const img = new window.Image();
+      img.src = `images/${filename}`;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = canvas.height = 96;
+        const ctx = canvas.getContext('2d');
+        ctx.save();
+        // Chọn shape theo index: 0 - tròn, 1 - lục giác, 2 - tam giác, 3 - ngôi sao, 4 - vuông
+        const shapeType = index % 5;
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        ctx.beginPath();
+        if (shapeType === 0) {
+          // Hình tròn
+          ctx.arc(centerX, centerY, 44, 0, Math.PI * 2);
+        } else if (shapeType === 1) {
+          // Lục giác
+          const hexRadius = 44;
+          for (let i = 0; i < 6; i++) {
+            const angle = (Math.PI / 3) * i;
+            const x = centerX + Math.cos(angle) * hexRadius;
+            const y = centerY + Math.sin(angle) * hexRadius;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+        } else if (shapeType === 2) {
+          // Tam giác
+          ctx.moveTo(centerX, centerY - 44);
+          ctx.lineTo(centerX + 38, centerY + 32);
+          ctx.lineTo(centerX - 38, centerY + 32);
+        } else if (shapeType === 3) {
+          // Ngôi sao
+          const spikes = 5, outerRadius = 44, innerRadius = 20;
+          for (let i = 0; i < spikes * 2; i++) {
+            const radius = i % 2 === 0 ? outerRadius : innerRadius;
+            const angle = (Math.PI / spikes) * i;
+            const x = centerX + Math.cos(angle) * radius;
+            const y = centerY + Math.sin(angle) * radius;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+        } else {
+          // Vuông
+          ctx.rect(centerX - 44, centerY - 44, 88, 88);
+        }
+        ctx.closePath();
+        ctx.clip();
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        ctx.restore();
+        imageTextures[index] = new THREE.CanvasTexture(canvas);
         resolve();
-      }, undefined, () => {
+      };
+      img.onerror = () => {
         // Nếu lỗi thì tạo fallback texture
         const canvas = document.createElement('canvas');
-        canvas.width = canvas.height = 64;
+        canvas.width = canvas.height = 96;
         const ctx = canvas.getContext('2d');
-        const shapeType = index % 4;
+        const fallbackType = index % 5;
         const centerX = canvas.width / 2;
         const centerY = canvas.height / 2;
         const colors = ['#ff69b4', '#ff9ddb', '#ffb6e6', '#ff45a2', '#ff007f'];
         ctx.fillStyle = colors[index % colors.length];
         ctx.beginPath();
-        switch(shapeType) {
-          case 0: ctx.rect(centerX - 12, centerY - 12, 24, 24); break;
-          case 1:
-            ctx.moveTo(centerX, centerY - 20);
-            ctx.lineTo(centerX + 20, centerY);
-            ctx.lineTo(centerX, centerY + 20);
-            ctx.lineTo(centerX - 20, centerY);
-            break;
-          case 2:
-            ctx.moveTo(centerX, centerY - 20);
-            ctx.lineTo(centerX + 20, centerY + 15);
-            ctx.lineTo(centerX - 20, centerY + 15);
-            break;
-          case 3:
-            const hexRadius = 15;
-            for (let i = 0; i < 6; i++) {
-              const angle = (Math.PI / 3) * i;
-              const x = centerX + Math.cos(angle) * hexRadius;
-              const y = centerY + Math.sin(angle) * hexRadius;
-              if (i === 0) ctx.moveTo(x, y);
-              else ctx.lineTo(x, y);
-            }
-            break;
+        if (fallbackType === 0) {
+          ctx.arc(centerX, centerY, 44, 0, Math.PI * 2);
+        } else if (fallbackType === 1) {
+          const hexRadius = 44;
+          for (let i = 0; i < 6; i++) {
+            const angle = (Math.PI / 3) * i;
+            const x = centerX + Math.cos(angle) * hexRadius;
+            const y = centerY + Math.sin(angle) * hexRadius;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+        } else if (fallbackType === 2) {
+          ctx.moveTo(centerX, centerY - 44);
+          ctx.lineTo(centerX + 38, centerY + 32);
+          ctx.lineTo(centerX - 38, centerY + 32);
+        } else if (fallbackType === 3) {
+          const spikes = 5, outerRadius = 44, innerRadius = 20;
+          for (let i = 0; i < spikes * 2; i++) {
+            const radius = i % 2 === 0 ? outerRadius : innerRadius;
+            const angle = (Math.PI / spikes) * i;
+            const x = centerX + Math.cos(angle) * radius;
+            const y = centerY + Math.sin(angle) * radius;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+        } else {
+          ctx.rect(centerX - 44, centerY - 44, 88, 88);
         }
         ctx.closePath();
         ctx.fill();
@@ -201,7 +256,7 @@ function loadStarImages() {
         ctx.fill();
         imageTextures[index] = new THREE.CanvasTexture(canvas);
         resolve();
-      });
+      };
     });
     promises.push(promise);
   });
@@ -211,28 +266,83 @@ function loadStarImages() {
   return imageTextures;
 }
 
-function createImageSprites() {
-  loadStarImages();
-  const closeStarCount = 80;
-  const defaultTextures = createFallbackTextures();
-  for (let i = 0; i < closeStarCount; i++) {
-    const angle = (i / closeStarCount) * Math.PI * 2;
-    const radius = 15 + Math.random() * 20;
-    const elevation = (Math.random() - 0.5) * Math.PI * 0.8;
-    const x = Math.cos(angle) * Math.cos(elevation) * radius;
-    const y = Math.sin(elevation) * radius;
-    const z = Math.sin(angle) * Math.cos(elevation) * radius;
-    const textureIndex = i % defaultTextures.length;
+function createStarsWithImages(textures) {
+  // Số lượng ảnh lặp lại nhiều lần
+  const spritesCount = Math.max(textures.length * 10, 500);
+  for (let i = 0; i < spritesCount; i++) {
+    // Chọn kiểu quỹ đạo giống shape star
+    const patternType = i % 5;
+    let x, y, z, angle, radius, elevation;
+    if (patternType === 0) {
+      radius = Math.random() * 200 + 30;
+      angle = Math.random() * Math.PI * 2;
+      elevation = (Math.random() - 0.5) * Math.PI * 0.5;
+      x = Math.cos(angle) * Math.cos(elevation) * radius;
+      y = Math.sin(elevation) * radius;
+      z = Math.sin(angle) * Math.cos(elevation) * radius;
+    } else if (patternType === 1) {
+      radius = Math.random() * 200 + 30;
+      angle = Math.random() * Math.PI * 2;
+      elevation = (Math.random() - 0.5) * Math.PI * 0.2;
+      x = Math.cos(angle) * Math.cos(elevation) * radius;
+      y = Math.sin(elevation) * radius * 0.3;
+      z = Math.sin(angle) * Math.cos(elevation) * radius;
+    } else if (patternType === 2) {
+      const armAngle = Math.random() * Math.PI * 8;
+      const armRadius = 30 + armAngle * 3;
+      elevation = (Math.random() - 0.5) * 20;
+      x = Math.cos(armAngle) * armRadius;
+      y = elevation;
+      z = Math.sin(armAngle) * armRadius;
+      angle = armAngle;
+      radius = armRadius;
+    } else if (patternType === 3) {
+      const clusterCenters = [
+        {x: 60, y: 40, z: 80},
+        {x: -70, y: -30, z: 60},
+        {x: 90, y: -50, z: -90},
+        {x: -50, y: 70, z: -60}
+      ];
+      const center = clusterCenters[Math.floor(Math.random() * clusterCenters.length)];
+      const spread = 35;
+      x = center.x + (Math.random() - 0.5) * spread;
+      y = center.y + (Math.random() - 0.5) * spread;
+      z = center.z + (Math.random() - 0.5) * spread;
+      angle = Math.random() * Math.PI * 2;
+      radius = Math.sqrt(x * x + y * y + z * z);
+      elevation = Math.atan2(y, Math.sqrt(x * x + z * z));
+    } else {
+      const distance = 40 + Math.random() * 160;
+      x = (Math.random() - 0.5) * distance;
+      y = (Math.random() - 0.5) * distance;
+      z = (Math.random() - 0.5) * distance;
+      angle = Math.random() * Math.PI * 2;
+      radius = Math.sqrt(x * x + y * y + z * z);
+      elevation = Math.atan2(y, Math.sqrt(x * x + z * z));
+    }
+
+    const textureIndex = i % textures.length;
     const spriteMaterial = new THREE.SpriteMaterial({
-      map: defaultTextures[textureIndex],
+      map: textures[textureIndex],
       transparent: true,
-      opacity: 0.8,
+      opacity: 0.9,
       blending: THREE.AdditiveBlending
     });
     const sprite = new THREE.Sprite(spriteMaterial);
     sprite.position.set(x, y, z);
-    const scale = 2 + Math.random() * 3;
+    let scale = 3 + Math.random() * 2;
     sprite.scale.set(scale, scale, 1);
+    sprite.rotation.z = Math.random() * Math.PI * 2;
+    sprite.userData = {
+      isPhoto: true,
+      baseScale: scale,
+      textureIndex: textureIndex,
+      patternType: patternType,
+      baseAngle: angle, // Sử dụng baseAngle cho chuyển động mượt
+      orbitRadius: radius,
+      orbitElevation: elevation,
+      orbitSpeed: 0.08 + Math.random() * 0.08 // tốc độ di chuyển
+    };
     imageSprites.push(sprite);
     scene.add(sprite);
   }
@@ -297,86 +407,10 @@ function createFallbackTextures() {
   return textures;
 }
 
-function createStarsWithImages(textures) {
-  const spritesCount = 300;
-  const usedTextureIndices = new Set();
-  const spiralArms = 5;
-  for (let i = 0; i < spritesCount; i++) {
-    let x, y, z;
-    let textureIndex;
-    if (usedTextureIndices.size < textures.length) {
-      do {
-        textureIndex = Math.floor(Math.random() * textures.length);
-      } while (usedTextureIndices.has(textureIndex));
-      usedTextureIndices.add(textureIndex);
-    } else {
-      textureIndex = (i % textures.length);
-    }
-    const patternType = i % 4;
-    if (patternType === 0) {
-      const armIndex = i % spiralArms;
-      const armOffset = (2 * Math.PI / spiralArms) * armIndex;
-      const distanceFromCenter = 20 + (i / spritesCount) * 170;
-      const spiralTightness = 0.3;
-      const spiralAngle = (i / spritesCount) * 12 * Math.PI + armOffset;
-      x = Math.cos(spiralAngle + distanceFromCenter * spiralTightness) * distanceFromCenter;
-      y = (Math.random() - 0.5) * 40;
-      z = Math.sin(spiralAngle + distanceFromCenter * spiralTightness) * distanceFromCenter;
-    } else if (patternType === 1) {
-      const ringRadius = 40 + (i % 4) * 30;
-      const ringAngle = (i / (spritesCount / 4)) * Math.PI * 2;
-      const ringWidth = 5;
-      x = Math.cos(ringAngle) * (ringRadius + (Math.random() - 0.5) * ringWidth);
-      y = (Math.random() - 0.5) * 30;
-      z = Math.sin(ringAngle) * (ringRadius + (Math.random() - 0.5) * ringWidth);
-    } else if (patternType === 2) {
-      const clusterCount = 8;
-      const clusterIndex = i % clusterCount;
-      const angle = (clusterIndex / clusterCount) * Math.PI * 2;
-      const clusterDistance = 60 + (clusterIndex % 3) * 40;
-      const clusterX = Math.cos(angle) * clusterDistance;
-      const clusterY = (clusterIndex % 3 - 1) * 30;
-      const clusterZ = Math.sin(angle) * clusterDistance;
-      x = clusterX + (Math.random() - 0.5) * 20;
-      y = clusterY + (Math.random() - 0.5) * 20;
-      z = clusterZ + (Math.random() - 0.5) * 20;
-    } else {
-      const radius = 30 + Math.random() * 150;
-      const angle = Math.random() * Math.PI * 2;
-      const elevation = (Math.random() - 0.5) * Math.PI * 0.6;
-      x = Math.cos(angle) * Math.cos(elevation) * radius;
-      y = Math.sin(elevation) * radius;
-      z = Math.sin(angle) * Math.cos(elevation) * radius;
-    }
-    if (textures[textureIndex]) {
-      const isPhoto = textureIndex < textures.length - 5;
-      const spriteMaterial = new THREE.SpriteMaterial({
-        map: textures[textureIndex],
-        transparent: true,
-        opacity: isPhoto ? 0.9 : 0.7,
-        blending: THREE.AdditiveBlending
-      });
-      const sprite = new THREE.Sprite(spriteMaterial);
-      sprite.position.set(x, y, z);
-      let scale;
-      if (isPhoto) {
-        scale = 4 + Math.random() * 3;
-        sprite.position.z += (Math.random() - 0.5) * 10;
-      } else {
-        scale = 2 + Math.random() * 2;
-      }
-      sprite.scale.set(scale, scale * 0.75, 1);
-      sprite.rotation.z = Math.random() * Math.PI * 2;
-      sprite.userData.isPhoto = isPhoto;
-      sprite.userData.baseScale = scale;
-      sprite.userData.textureIndex = textureIndex;
-      imageSprites.push(sprite);
-      scene.add(sprite);
-    }
-  }
-}
 createImageSprites();
-
+function createImageSprites() {
+  loadStarImages();
+}
 function createStars() {
   const particleCount = 1200;
   const positions = new Float32Array(particleCount * 3);
@@ -571,11 +605,34 @@ renderer.domElement.addEventListener('wheel', (event) => {
   camera.position.z = Math.max(10, Math.min(100, camera.position.z));
 });
 
+// Hàm chuyển HSL sang RGB
+function hslToRgb(h, s, l) {
+  let r, g, b;
+  if (s == 0) {
+    r = g = b = l;
+  } else {
+    function hue2rgb(p, q, t) {
+      if (t < 0) t += 1;
+      if (t > 1) t -= 1;
+      if (t < 1 / 6) return p + (q - p) * 6 * t;
+      if (t < 1 / 2) return q;
+      if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+      return p;
+    }
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    r = hue2rgb(p, q, h + 1 / 3);
+    g = hue2rgb(p, q, h);
+    b = hue2rgb(p, q, h - 1 / 3);
+  }
+  return [r, g, b];
+}
+
 // Animation loop
 function animate() {
   requestAnimationFrame(animate);
   const time = Date.now() * 0.001;
-   // Auto zoom effect
+  // Auto zoom effect
   if (autoZoom) {
     camera.position.z += zoomSpeedAuto * zoomDirection;
     if (camera.position.z >= zoomMax) zoomDirection = -1;
@@ -585,9 +642,7 @@ function animate() {
   ringsGroup.children.forEach((ring) => {
     ring.rotation.y += ring.userData.speed * 0.01;
   });
-  ringsGroup.children.forEach((ring) => {
-    ring.rotation.y += ring.userData.speed * 0.01;
-  });
+
   if (starPoints) {
     starPoints.rotation.y += 0.0003;
     const sizes = starPoints.geometry.attributes.size.array;
@@ -595,10 +650,12 @@ function animate() {
     for (let i = 0; i < sizes.length; i++) {
       sizes[i] = 1.2 + Math.sin(time * 3 + i) * 0.6 + Math.random() * 0.3;
       const i3 = i * 3;
-      if (colors[i3 + 1] < 0.8) {
-        colors[i3 + 1] = 0.4 + Math.sin(time * 2 + i) * 0.2 + Math.random() * 0.1;
-        colors[i3 + 2] = 0.7 + Math.sin(time * 1.5 + i) * 0.15 + Math.random() * 0.1;
-      }
+      // Đổi màu liên tục kiểu thiên hà (2-3s đổi màu 1 lần)
+      const hue = ((time * 0.4 + i * 0.01) % 1.0);
+      const rgb = hslToRgb(hue, 0.7, 0.7);
+      colors[i3] = rgb[0];
+      colors[i3 + 1] = rgb[1];
+      colors[i3 + 2] = rgb[2];
       if (Math.random() > 0.998) {
         sizes[i] = sizes[i] * 3;
         colors[i3] = 1;
@@ -629,7 +686,12 @@ function animate() {
         for (let i = 0; i < squareSizes.length; i++) {
           squareSizes[i] = 1 + Math.sin(time * 2 + i * 0.2) * 0.7 + Math.random() * 0.2;
           const i3 = i * 3;
-          squareColors[i3 + 1] = 0.4 + Math.sin(time * 1.3 + i * 0.1) * 0.3;
+          // Đổi màu liên tục kiểu thiên hà cho square star
+          const hue = ((time * 0.4 + i * 0.01) % 1.0);
+          const rgb = hslToRgb(hue, 0.7, 0.7);
+          squareColors[i3] = rgb[0];
+          squareColors[i3 + 1] = rgb[1];
+          squareColors[i3 + 2] = rgb[2];
           if (Math.random() > 0.999) {
             squareSizes[i] = squareSizes[i] * 3;
             squareColors[i3] = 1;
@@ -642,41 +704,40 @@ function animate() {
       }
     }
   }
+
   imageSprites.forEach((sprite, index) => {
     const isPhoto = sprite.userData.isPhoto;
+    const distance = sprite.position.distanceTo(camera.position);
+
+    // Di chuyển theo quỹ đạo shape star (dùng baseAngle để mượt)
     if (isPhoto) {
-      const orbitSpeed = 0.1 + (index % 7) * 0.02;
-      const orbitRadius = 0.01 + (index % 5) * 0.005;
-      sprite.position.x += Math.sin(time * orbitSpeed + index) * orbitRadius;
-      sprite.position.y += Math.sin(time * 0.3 + index * 0.2) * 0.01;
-      sprite.position.z += Math.cos(time * orbitSpeed + index * 0.7) * orbitRadius;
-      sprite.rotation.z += 0.001;
-      const baseScale = sprite.userData.baseScale || sprite.scale.x;
-      if (!sprite.userData.baseScale) sprite.userData.baseScale = baseScale;
-      const scale = baseScale + Math.sin(time * 0.5 + index * 0.1) * 0.1;
-      sprite.scale.set(scale, scale, 1);
-    } else {
-      const orbitSpeed = 0.3 + (index % 5) * 0.08;
-      const orbitRadius = 0.04 + (index % 4) * 0.02;
-      sprite.position.x += Math.sin(time * orbitSpeed + index) * orbitRadius;
-      sprite.position.y += Math.sin(time * 0.7 + index * 0.4) * 0.03;
-      sprite.position.z += Math.cos(time * orbitSpeed + index) * orbitRadius;
-      sprite.rotation.z += 0.005 + (index % 10) * 0.001;
-      const pulseSpeed = 1.5 + (index % 4);
-      const pulseAmount = 0.4 + (index % 5) * 0.15;
-      const baseScale = sprite.userData.baseScale || sprite.scale.x;
-      if (!sprite.userData.baseScale) sprite.userData.baseScale = baseScale;
-      const scale = sprite.userData.baseScale + Math.sin(time * pulseSpeed + index) * pulseAmount;
-      sprite.scale.set(scale, scale, 1);
-      if (Math.random() > 0.97) {
-        sprite.material.opacity = 0.5 + Math.random() * 0.5;
-      }
+      const radius = sprite.userData.orbitRadius;
+      const elevation = sprite.userData.orbitElevation;
+      const baseAngle = sprite.userData.baseAngle;
+      const orbitSpeed = sprite.userData.orbitSpeed;
+      const angle = baseAngle + time * orbitSpeed;
+      sprite.position.x = Math.cos(angle) * Math.cos(elevation) * radius;
+      sprite.position.y = Math.sin(elevation) * radius;
+      sprite.position.z = Math.sin(angle) * Math.cos(elevation) * radius;
     }
-    if (!isPhoto && Math.random() > 0.995) {
-      const colors = [0xff69b4, 0xff45a2, 0xff9ddb, 0xffb6e6, 0xff007f];
-      sprite.material.color = new THREE.Color(colors[Math.floor(Math.random() * colors.length)]);
+
+    // Scale nhỏ dần khi xa camera
+    let scale = sprite.userData.baseScale;
+    if (distance > 70) {
+      scale = Math.max(1.0, scale * (70 / distance));
+    }
+    sprite.scale.set(scale, scale, 1);
+
+    // Hiệu ứng lấp lánh và đổi màu liên tục
+    if (distance < 70) {
+      sprite.material.opacity = 0.8 + Math.sin(time * 2 + index) * 0.15;
+      const hue = ((time * 0.4 + index * 0.01) % 1.0);
+      sprite.material.color.setHSL(hue, 0.8, 0.8);
+    } else {
+      sprite.material.opacity = 0.5 + Math.sin(time * 2 + index) * 0.1;
     }
   });
+
   planet.rotation.y += 0.005;
   renderer.render(scene, camera);
 }
@@ -686,12 +747,12 @@ window.addEventListener('resize', () => {
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
+
 // --- 3D Text: Đếm ngày giờ yêu nhau ---
 let loveTextMesh;
 const loveStartDate = new Date('2022-02-14T00:00:00'); // Đổi thành ngày bắt đầu yêu nhau
 
 const fontLoader = new THREE.FontLoader();
-// Bạn có thể đổi sang font online nếu cần: https://threejs.org/examples/fonts/roboto_regular.typeface.json
 fontLoader.load('fonts/Libertinus_Serif_Italic.json', function(font) {
   function createLoveText() {
     const now = new Date();
@@ -723,8 +784,8 @@ fontLoader.load('fonts/Libertinus_Serif_Italic.json', function(font) {
       loveTextMesh.geometry = textGeometry;
       loveTextMesh.material.color = blinkColor;
       loveTextMesh.material.emissive = blinkColor;
-      loveTextMesh.geometry.center(); // căn giữa lại mỗi lần cập nhật
-      loveTextMesh.position.set(0, 8, 0); // luôn căn giữa phía trên planet
+      loveTextMesh.geometry.center();
+      loveTextMesh.position.set(0, 8, 0);
     } else {
       loveTextMesh = new THREE.Mesh(textGeometry, textMaterial);
       loveTextMesh.geometry.center();
@@ -735,5 +796,6 @@ fontLoader.load('fonts/Libertinus_Serif_Italic.json', function(font) {
   createLoveText();
   setInterval(createLoveText, 1000);
 });
+
 // Start animation
 animate();
