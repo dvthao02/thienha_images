@@ -149,34 +149,18 @@ function loadStarImages() {
   const loader = new THREE.TextureLoader();
   const imageTextures = [];
   const promises = [];
-  const imageFiles = [
-    'z6907980152241_ba3175cba703f9ab68de393b88430443.jpg',
-    'z6907980566480_0067314bda38229023cd6c5d74a055d1.jpg',
-    'z6907986209790_3d5a4f84fcf4f23aa6b72d6ff774e7f9.jpg',
-    'z6907986210126_771425da94925f9af5553a94d3bf4f44.jpg',
-    'z6907986210504_49e54106556b84cf0570c92046b3d687.jpg',
-    'z6907986214022_8f1ecccb73b1d4ce0b6dfa71018f0e82.jpg',
-    'z6907986215472_deba02cae431b94f045661db588e22cf.jpg',
-    'z6907986227729_4321fd45314a15839c81a34ca5ef7bdd.jpg',
-    'z6907986227859_fad5089fc5df2354476c9da58c8199a2.jpg',
-    'z6907986228597_52cc822388901190b425877412c61a26.jpg',
-    'z6907986228740_bf0e26104178778c4081dc88c48723f2.jpg',
-    'z6908013529823_08c2fecd84d340c4048face6d250eeb8.jpg',
-    'z6908013532688_10957597e3b965d0324ac8d1c4002361.jpg',
-    'z6908013532798_fb6a64c219ea5004d6e1b5ed21d71a18.jpg',
-    'z6908013532923_7baadd39826f401c2e4abadfdc6abc60.jpg',
-    'z6908013535746_f38e4b59b71282d5cc5aadbc73137dd2.jpg',
-    'z6908013537571_5056907a3d756a072e469f488d2a55fb.jpg',
-    'z6908013538221_ad8ae2da6445d23a9387125c4b3c797d.jpg',
-    'z6908013538349_7dab25ba11d00bde6a186e915e5ec780.jpg',
-    'z6908013539815_6d14a4206fb6fff3ffbfe7eb03ea1091.jpg'
-  ];
+  // Tự động tạo danh sách file img-1.jpg đến img-56.jpg (bỏ thienha.png)
+  const imageFiles = [];
+  for (let i = 1; i <= 56; i++) {
+    imageFiles.push(`img-${i}.jpg`);
+  }
   imageFiles.forEach((filename, index) => {
     const promise = new Promise((resolve) => {
       loader.load(`images/${filename}`, (texture) => {
         imageTextures[index] = texture;
         resolve();
       }, undefined, () => {
+        // Nếu lỗi thì tạo fallback texture
         const canvas = document.createElement('canvas');
         canvas.width = canvas.height = 64;
         const ctx = canvas.getContext('2d');
@@ -702,6 +686,54 @@ window.addEventListener('resize', () => {
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
+// --- 3D Text: Đếm ngày giờ yêu nhau ---
+let loveTextMesh;
+const loveStartDate = new Date('2022-02-14T00:00:00'); // Đổi thành ngày bắt đầu yêu nhau
 
+const fontLoader = new THREE.FontLoader();
+// Bạn có thể đổi sang font online nếu cần: https://threejs.org/examples/fonts/roboto_regular.typeface.json
+fontLoader.load('fonts/Libertinus_Serif_Italic.json', function(font) {
+  function createLoveText() {
+    const now = new Date();
+    const diffMs = now - loveStartDate;
+    const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const text = `Mình đã yêu nhau : ${days} ngày`;
+    const textGeometry = new THREE.TextGeometry(text, {
+      font: font,
+      size: 2,
+      height: 0.18,
+      curveSegments: 16,
+      bevelEnabled: true,
+      bevelThickness: 0.04,
+      bevelSize: 0.08,
+      bevelOffset: 0,
+      bevelSegments: 3
+    });
+    // Hiệu ứng blink: đổi màu theo thời gian
+    const blinkColor = new THREE.Color(`hsl(${(now.getSeconds() * 6) % 360}, 90%, 70%)`);
+    const textMaterial = new THREE.MeshPhongMaterial({
+      color: blinkColor,
+      shininess: 80,
+      emissive: blinkColor,
+      transparent: true,
+      opacity: 0.95
+    });
+    if (loveTextMesh) {
+      loveTextMesh.geometry.dispose();
+      loveTextMesh.geometry = textGeometry;
+      loveTextMesh.material.color = blinkColor;
+      loveTextMesh.material.emissive = blinkColor;
+      loveTextMesh.geometry.center(); // căn giữa lại mỗi lần cập nhật
+      loveTextMesh.position.set(0, 8, 0); // luôn căn giữa phía trên planet
+    } else {
+      loveTextMesh = new THREE.Mesh(textGeometry, textMaterial);
+      loveTextMesh.geometry.center();
+      loveTextMesh.position.set(0, 8, 0);
+      scene.add(loveTextMesh);
+    }
+  }
+  createLoveText();
+  setInterval(createLoveText, 1000);
+});
 // Start animation
 animate();
